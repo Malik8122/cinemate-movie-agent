@@ -42,8 +42,8 @@ Conversational memory and structured output (OutputParser) will be added in subs
 ## Technology Stack
 
 - Python 3.13
-- LangChain (`langchain`, `langchain-core`, `langchain-openai`)
-- LLM via the OpenAI API
+- LangChain (`langchain`, `langchain-core`, `langchain-google-genai`)
+- LLM: Google Gemini (via the Gemini API)
 - TMDB API (v3)
 
 ## Current Status
@@ -55,11 +55,38 @@ Conversational memory and structured output (OutputParser) will be added in subs
 | TMDB client | completed – unit-tested with mocks; **not yet verified against the live API** |
 | LangChain tool | completed – unit-tested with mocks; **not yet verified against the live API** |
 | Prompt template | basic version completed |
-| LLM configuration | written; **not yet run against a real model** |
-| Agent | not yet implemented |
+| LLM configuration (Gemini) | written and unit-tested offline; **not yet run against the live Gemini API** |
+| Agent (`create_agent`, Gemini + `search_movies`) | implemented; loop verified offline with a scripted model; **live run pending (Kaggle notebook)** |
 | Memory | not yet implemented |
 | Structured output | not yet implemented |
 | UI | not yet implemented |
+
+## LLM Provider
+
+CineMate uses Google Gemini through the official LangChain integration
+(`langchain-google-genai`, class `ChatGoogleGenerativeAI`). The model is chosen with the
+`GEMINI_MODEL` environment variable, so it can be changed without touching code. The model must
+support tool/function calling, because the agent uses it to call the TMDB tool.
+
+For development and testing we use the Gemini API free tier, where available. Free-tier models,
+rate limits and quotas are set by Google and may change, so heavy use can be rate-limited.
+API keys are read from environment variables / `.env` and are never committed.
+
+## Kaggle Notebook
+
+`notebooks/CineMate_Phase2.ipynb` is the live execution environment for Phase 2. Our development
+machine's network cannot resolve the TMDB API correctly (a local DNS problem), and Kaggle provides an
+environment that can reach the external APIs. The notebook clones this repository and runs the real
+code in `src/cinemate`; it does not contain a copy of the application. Kaggle is **not** required for
+the final application, which runs anywhere with a working network.
+
+To run it: open the notebook in Kaggle, turn **Internet: On**, add the Kaggle Secrets `TMDB_API_KEY`,
+`GEMINI_API_KEY` and `GEMINI_MODEL` (attach them to the notebook), then Run All. Keys are never
+typed into cells and never printed. The notebook tests TMDB, Gemini, the LangChain tool, Gemini tool
+calling, the agent and the no-result case, and prints the agent's steps (tool call, TMDB results, final answer).
+
+Known limitation: TMDB's search endpoint matches movie *titles*, not genres or ratings, so the agent
+searches for specific titles it suggests and judges the returned data itself.
 
 ## Setup
 
@@ -85,8 +112,9 @@ python -m pytest
 Optional, with real keys in `.env`:
 
 ```bash
-python -m pytest -m live -v     # live TMDB checks
-python -m cinemate.app          # smoke check: TMDB tool + LLM
+python -m pytest -m live -v     # live TMDB + Gemini checks (incl. tool calling)
+set PYTHONPATH=src              # Windows cmd (PowerShell: $env:PYTHONPATH="src"; macOS/Linux: export PYTHONPATH=src)
+python -m cinemate.app          # smoke check: TMDB tool + Gemini
 ```
 
 `.env` is git-ignored; never commit real keys.

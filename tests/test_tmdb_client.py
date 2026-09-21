@@ -1,3 +1,4 @@
+import pytest
 import requests
 
 from cinemate import tmdb_client
@@ -37,6 +38,31 @@ def test_timeout(monkeypatch):
         raise requests.Timeout()
     monkeypatch.setattr(tmdb_client.requests, "get", slow)
     assert tmdb_client.search_movies("Inception").status == "network_error"
+
+
+@pytest.mark.parametrize("exc, expected", [
+    (requests.exceptions.ConnectTimeout(), "Unable to reach the movie database"),
+    (requests.exceptions.ReadTimeout(), "took too long"),
+    (requests.exceptions.SSLError("bad cert"), "SSL"),
+    (requests.exceptions.ProxyError("proxy"), "Unable to reach the movie database"),
+])
+def test_network_failure_kinds_give_clean_messages(monkeypatch, exc, expected):
+    def boom(url, **kwargs):
+        raise exc
+    monkeypatch.setattr(tmdb_client.requests, "get", boom)
+    result = tmdb_client.search_movies("Inception")
+    assert result.status == "network_error" and expected in result.message and result.movies == []
+
+
+def test_request_uses_separate_connect_and_read_timeouts(monkeypatch):
+    seen = {}
+    def fake_get(url, **kwargs):
+        seen.update(kwargs)
+        return FakeResponse(200, {"results": []})
+    monkeypatch.setattr(tmdb_client.requests, "get", fake_get)
+    tmdb_client.search_movies("x")
+    connect, read = seen["timeout"]
+    assert connect <= 5 and read <= 15
 
 
 def test_api_http_failure(monkeypatch):

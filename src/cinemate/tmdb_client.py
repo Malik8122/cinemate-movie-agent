@@ -13,7 +13,10 @@ from cinemate.config import get_tmdb_api_key
 from cinemate.schemas import Movie, SearchResult
 
 BASE_URL = "https://api.themoviedb.org/3"
-TIMEOUT_SECONDS = 10
+# (connect, read) seconds. Connect is short so an unreachable host fails fast; note that
+# requests tries each resolved address (IPv6 + IPv4) separately, so worst case is ~2x connect.
+TIMEOUT_SECONDS = (4, 10)
+UNREACHABLE_MESSAGE = "Unable to reach the movie database right now. Please try again."
 MAX_RESULTS = 5
 
 
@@ -44,10 +47,14 @@ def _get(path: str, params: dict) -> dict:
             headers=headers,
             timeout=TIMEOUT_SECONDS,
         )
-    except requests.Timeout:
-        raise TMDBError("network_error", "The request to TMDB timed out. Please try again.")
+    except requests.exceptions.SSLError:
+        raise TMDBError("network_error", "A secure connection to TMDB could not be established (SSL problem).")
+    except requests.exceptions.ConnectTimeout:
+        raise TMDBError("network_error", UNREACHABLE_MESSAGE)
+    except requests.exceptions.ReadTimeout:
+        raise TMDBError("network_error", "TMDB took too long to respond. Please try again.")
     except requests.RequestException:
-        raise TMDBError("network_error", "Could not reach TMDB (network problem).")
+        raise TMDBError("network_error", UNREACHABLE_MESSAGE)
 
     if resp.status_code == 401:
         raise TMDBError("auth_error", "TMDB rejected the API key. Check TMDB_API_KEY.")

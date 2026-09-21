@@ -28,9 +28,9 @@ def get_tmdb_api_key() -> str:
     return _require("TMDB_API_KEY")
 
 
-def get_llm_api_key() -> str:
-    return _require("OPENAI_API_KEY")
+def get_gemini_api_key() -> str:
+    return _require("GEMINI_API_KEY")
 
 
 def get_model_name() -> str:
-    return _require("OPENAI_MODEL")
+    return _require("GEMINI_MODEL")
